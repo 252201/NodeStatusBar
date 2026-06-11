@@ -1,0 +1,10 @@
+NodeStatusBar includes or can use the Hysteria client binary.
+
+Hysteria
+- Upstream: https://github.com/apernet/hysteria
+- Website: https://v2.hysteria.network/
+- License: MIT
+
+The bundled binary is provided for convenience. You can replace it with a
+locally installed Hysteria executable at /opt/homebrew/bin/hysteria or
+/usr/local/bin/hysteria.
