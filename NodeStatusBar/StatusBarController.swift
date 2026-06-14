@@ -9,10 +9,6 @@ final class StatusBarController: NSObject {
     private let menu = NSMenu()
     private var settingsWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
-    private var onlineSummaryItem: NSMenuItem?
-    private var disconnectSummaryItem: NSMenuItem?
-    private var latencyMenuItem: NSMenuItem?
-    private var nodeMenuItems: [UUID: NSMenuItem] = [:]
 
     init(monitor: NodeMonitor) {
         self.monitor = monitor
@@ -20,6 +16,7 @@ final class StatusBarController: NSObject {
         super.init()
 
         statusItem.menu = menu
+        menu.delegate = self
         configureButton()
         rebuildMenu()
         bindMonitor()
@@ -48,7 +45,6 @@ final class StatusBarController: NSObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateStatusItem()
-                self?.updateMenu()
             }
             .store(in: &cancellables)
     }
@@ -59,7 +55,6 @@ final class StatusBarController: NSObject {
 
     private func rebuildMenu() {
         menu.removeAllItems()
-        nodeMenuItems.removeAll()
 
         let versionItem = NSMenuItem(title: "NodeStatusBar \(AppInfo.displayVersion)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
@@ -67,11 +62,9 @@ final class StatusBarController: NSObject {
 
         let summary = NSMenuItem(title: "在线 \(monitor.onlineCount) / \(monitor.nodes.count)", action: nil, keyEquivalent: "")
         summary.isEnabled = false
-        onlineSummaryItem = summary
         menu.addItem(summary)
         let disconnectSummary = NSMenuItem(title: "断连 \(monitor.totalDisconnectCount) 次", action: nil, keyEquivalent: "")
         disconnectSummary.isEnabled = false
-        disconnectSummaryItem = disconnectSummary
         menu.addItem(disconnectSummary)
         menu.addItem(.separator())
 
@@ -85,7 +78,13 @@ final class StatusBarController: NSObject {
                 item.toolTip = nil
                 item.target = self
                 item.representedObject = node.id
-                nodeMenuItems[node.id] = item
+                let health = monitor.status(for: node)
+                let selectionMark = monitor.isSelectedForStatusBar(node) ? "  ✓" : ""
+                let disconnectText = "断连 \(monitor.disconnectCount(for: node)) 次"
+                item.attributedTitle = attributedMenuTitle(
+                    "\(symbol(for: health)) \(node.displayName)  \(health.shortLabel)  \(disconnectText)\(selectionMark)",
+                    health: health
+                )
                 menu.addItem(item)
             }
         }
@@ -94,38 +93,11 @@ final class StatusBarController: NSObject {
         menu.addItem(NSMenuItem(title: "立即刷新", action: #selector(refreshNow), keyEquivalent: "r", target: self))
         let latencyItem = NSMenuItem(title: "延迟检测", action: #selector(toggleLatencyDetection), keyEquivalent: "", target: self)
         latencyItem.state = monitor.latencyDetectionEnabled ? .on : .off
-        latencyMenuItem = latencyItem
         menu.addItem(latencyItem)
         menu.addItem(NSMenuItem(title: "清零断连次数...", action: #selector(resetDisconnectCounts), keyEquivalent: "", target: self))
         menu.addItem(NSMenuItem(title: "设置节点...", action: #selector(showSettings), keyEquivalent: ",", target: self))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 NodeStatusBar", action: #selector(quit), keyEquivalent: "q", target: self))
-        updateMenuItemTitles()
-    }
-
-    private func updateMenu() {
-        rebuildMenu()
-    }
-
-    private func updateMenuItemTitles() {
-        onlineSummaryItem?.title = "在线 \(monitor.onlineCount) / \(monitor.nodes.count)"
-        disconnectSummaryItem?.title = "断连 \(monitor.totalDisconnectCount) 次"
-        latencyMenuItem?.state = monitor.latencyDetectionEnabled ? .on : .off
-
-        for node in monitor.nodes {
-            guard let item = nodeMenuItems[node.id] else {
-                continue
-            }
-
-            let health = monitor.status(for: node)
-            let selectionMark = monitor.isSelectedForStatusBar(node) ? "  ✓" : ""
-            let disconnectText = "断连 \(monitor.disconnectCount(for: node)) 次"
-            item.attributedTitle = attributedMenuTitle(
-                "\(symbol(for: health)) \(node.displayName)  \(health.shortLabel)  \(disconnectText)\(selectionMark)",
-                health: health
-            )
-            item.toolTip = nil
-        }
     }
 
     private func symbol(for health: NodeHealth) -> String {
@@ -261,6 +233,14 @@ final class StatusBarController: NSObject {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+}
+
+extension StatusBarController: NSMenuDelegate {
+    nonisolated func menuWillOpen(_ menu: NSMenu) {
+        Task { @MainActor in
+            rebuildMenu()
+        }
     }
 }
 

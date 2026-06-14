@@ -94,13 +94,8 @@ struct PreferencesView: View {
 
                 Spacer()
 
-                Picker("", selection: $logFilter) {
-                    ForEach(DisconnectLogFilter.allCases) { filter in
-                        Text(filter.title).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 210)
+                logFilterControl
+                    .frame(width: 210)
 
                 TextField("搜索节点或原因", text: $logSearchText)
                     .textFieldStyle(.roundedBorder)
@@ -160,6 +155,31 @@ struct PreferencesView: View {
             return log.nodeName.lowercased().contains(trimmedSearchText) ||
                 log.displayMessage.lowercased().contains(trimmedSearchText)
         }
+    }
+
+    private var logFilterControl: some View {
+        HStack(spacing: 0) {
+            ForEach(DisconnectLogFilter.allCases) { filter in
+                Button {
+                    logFilter = filter
+                } label: {
+                    Text(filter.title)
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(logFilter == filter ? Color.accentColor : Color.clear)
+                        .foregroundStyle(logFilter == filter ? .white : .primary)
+                }
+                .buttonStyle(.plain)
+
+                if filter.id != DisconnectLogFilter.allCases.last?.id {
+                    Divider()
+                        .frame(height: 18)
+                }
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
     private var addNodeForm: some View {

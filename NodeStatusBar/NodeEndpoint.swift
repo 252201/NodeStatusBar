@@ -373,6 +373,19 @@ enum NodeHealth: Equatable {
         }
     }
 
+    func hasSameDisplayState(as other: NodeHealth) -> Bool {
+        switch (self, other) {
+        case (.unknown, .unknown), (.checking, .checking):
+            return true
+        case let (.online(lhsLatency, lhsMessage, _), .online(rhsLatency, rhsMessage, _)):
+            return lhsLatency == rhsLatency && lhsMessage == rhsMessage
+        case let (.offline(lhsMessage, _), .offline(rhsMessage, _)):
+            return lhsMessage == rhsMessage
+        default:
+            return false
+        }
+    }
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"

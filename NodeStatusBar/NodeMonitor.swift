@@ -7,7 +7,7 @@ import Foundation
 final class NodeMonitor: ObservableObject {
     @Published private(set) var nodes: [NodeEndpoint]
     @Published private(set) var statuses: [UUID: NodeHealth] = [:]
-    @Published private(set) var isRefreshing = false
+    private var isRefreshing = false
     @Published private(set) var selectedNodeID: UUID?
     @Published private(set) var latencyDetectionEnabled: Bool
     @Published private(set) var disconnectCounts: [UUID: Int]
@@ -292,9 +292,7 @@ final class NodeMonitor: ObservableObject {
             recordLocalProbeFailure(for: node, health: health)
 
             if previousStatus.isTransient {
-                var updatedStatuses = statuses
-                updatedStatuses[node.id] = health
-                statuses = updatedStatuses
+                publishStatusIfNeeded(health, for: node, previousStatus: previousStatus)
             }
             return
         }
@@ -303,6 +301,14 @@ final class NodeMonitor: ObservableObject {
             recordDisconnectStart(for: node, health: health)
         } else if !previousStatus.isOnline && health.isOnline {
             recordDisconnectEnd(for: node, health: health)
+        }
+
+        publishStatusIfNeeded(health, for: node, previousStatus: previousStatus)
+    }
+
+    private func publishStatusIfNeeded(_ health: NodeHealth, for node: NodeEndpoint, previousStatus: NodeHealth) {
+        guard !previousStatus.hasSameDisplayState(as: health) else {
+            return
         }
 
         var updatedStatuses = statuses
